@@ -11,7 +11,7 @@
     "type": "media",
     "options": {"baseURL": null},
     "mappings": {},
-    "supportedAuth": ["staticKey"]
+    "supportedAuth": ["oAuth2ClientCredentials"]
   },
   "license": "MIT",
   "main": "out/connector.js",

@@ -35,35 +35,151 @@ export default class MyConnector implements Media.MediaConnector {
     const tagQuery = context['tag'] ?? '';
     const filter = options.filter[0] ?? '';
     const finalQuery = filter + query;
+    const browseFolders = context['folderView'] ?? false;
+    const collection = options.collection ?? null;
 
-    let url = `${this.runtime.options["baseURL"]}/api/v1/search?scheme=image&limit=${options.pageSize}&start=${startIndex * options.pageSize}${(finalQuery != '') ? `&keyword=${finalQuery}` : ''}${(tagQuery != '') ? `&tags=${tagQuery}` : ''}`;
+    if (browseFolders) {
 
-    const resp = await this.runtime.fetch(url, {
-      method: "GET"
-    });
+      let scheme = null;
+      let id = null;
+      if(collection != "/") {
+        const collectionStrings = this.splitCollectionString(collection);
+        scheme = collectionStrings[0];
+        id = collectionStrings[1];
+      }
 
-    if (resp.ok) {
-      const data = (JSON.parse(resp.text)).results;
+      if(!scheme){
+        let url = `${this.runtime.options["baseURL"]}/api/v1/tree?sortBy=time&sortDirection=ascending&layer=1`;
+  
+        const resp = await this.runtime.fetch(url, {
+          method: "GET"
+        });
+  
+        if (resp.ok) {
+          const data = (JSON.parse(resp.text)).results;
+  
+          const dataFormatted = data.map(d => ({
+            id: d.idPath,
+            name: d.namePath,
+            relativePath: `${d.scheme}SPLIT_ME!${d.idPath}SPLIT_ME!`,
+            type: 1,
+            metaData: {}
+          })) as Array<any>;
+  
+          return {
+            pageSize: options.pageSize,
+            data: dataFormatted,
+            links: {
+              nextPage: ''
+            }
+          }
+        }
+      } else if (scheme == "/folder") {
+        let url = `${this.runtime.options["baseURL"]}/api/v1/tree/${id}?sortBy=time&sortDirection=ascending&layer=1`;
 
-      const dataFormatted = data.map(d => ({
-        id: d.id,
-        name: d.name,
-        relativePath: "/",
-        type: 0,
-        metaData: {}
-      })) as Array<any>;
+        const resp = await this.runtime.fetch(url, {
+          method: "GET"
+        });
+  
+        if (resp.ok) {
+          const data = (JSON.parse(resp.text)).results;
+  
+          const dataFormatted = data.map(d => ({
+            id: d.idPath,
+            name: d.namePath,
+            relativePath: `${d.scheme}SPLIT_ME!${d.idPath}SPLIT_ME!`,
+            type: 1,
+            metaData: {}
+          })) as Array<any>;
+  
+          return {
+            pageSize: options.pageSize,
+            data: dataFormatted,
+            links: {
+              nextPage: ''
+            }
+          }
+        }
+      } else if (scheme == "/album") {
+        let url = `${this.runtime.options["baseURL"]}/api/v1/album/${id}?scheme=image&limit=${options.pageSize}&start=${startIndex * options.pageSize}&sortBy=time&sortDirection=ascending`;
 
-      return {
-        pageSize: options.pageSize,
-        data: dataFormatted,
-        links: {
-          nextPage: `${dataFormatted.length < options.pageSize ? '' : startIndex + 1}`
+        const resp = await this.runtime.fetch(url, {
+          method: "GET"
+        });
+  
+        if (resp.ok) {
+          const data = (JSON.parse(resp.text)).results;
+  
+          const dataFormatted = data.map(d => ({
+            id: d.id,
+            name: d.name,
+            relativePath: "/",
+            type: 0,
+            metaData: { //The content details endpoint gives a whole host of image metadata we could pull from instead here
+              // size: d.default.Size,
+              // color: d.default.Color,
+              // uploadedBy: d.default["Uploaded by"],
+              // width: d.width,
+              // height: d.height,
+              // copyright: d.default.Copyright,
+              // dateCreated: d.default["Date Created"],
+              // resolution: d.default.Resolution,
+              // tags: d.tag,
+              // approvalStatus: d.approvalStatus
+            }
+          })) as Array<any>;
+  
+          return {
+            pageSize: options.pageSize,
+            data: dataFormatted,
+            links: {
+              nextPage: `${dataFormatted.length < options.pageSize ? '' : startIndex + 1}`
+            }
+          }
         }
       }
+    } else {
+      let url = `${this.runtime.options["baseURL"]}/api/v1/search?scheme=image&limit=${options.pageSize}&start=${startIndex * options.pageSize}${(finalQuery != '') ? `&keyword=${finalQuery}` : ''}${(tagQuery != '') ? `&tags=${tagQuery}` : ''}`;
+
+      const resp = await this.runtime.fetch(url, {
+        method: "GET"
+      });
+
+      if (resp.ok) {
+        const data = (JSON.parse(resp.text)).results;
+
+        const dataFormatted = data.map(d => ({
+          id: d.id,
+          name: d.name,
+          relativePath: "/",
+          type: 0,
+          metaData: { //The content details endpoint gives a whole host of image metadata we could pull from instead here
+            // size: d.default.Size,
+            // color: d.default.Color,
+            // uploadedBy: d.default["Uploaded by"],
+            // width: d.width,
+            // height: d.height,
+            // copyright: d.default.Copyright,
+            // dateCreated: d.default["Date Created"],
+            // resolution: d.default.Resolution,
+            // tags: d.tag,
+            // approvalStatus: d.approvalStatus
+          }
+        })) as Array<any>;
+
+        return {
+          pageSize: options.pageSize,
+          data: dataFormatted,
+          links: {
+            nextPage: `${dataFormatted.length < options.pageSize ? '' : startIndex + 1}`
+          }
+        }
+      }
+
+      // error handling
+      throw new Error("Failed to fetch images from Canto!");
     }
 
-    // error handling
-    throw new Error("Failed to fetch images from Canto!");
   }
   detail(
     id: string,
@@ -97,6 +213,10 @@ export default class MyConnector implements Media.MediaConnector {
       name: "tag",
       displayName: "Tag(s)",
       type: "text"
+    }, {
+      name: "folderView",
+      displayName: "Folder View",
+      type: "boolean"
     }];
   }
   getCapabilities(): Media.MediaConnectorCapabilities {
@@ -104,7 +224,12 @@ export default class MyConnector implements Media.MediaConnector {
       query: true,
       detail: true,
       filtering: true,
-      metadata: false,
+      metadata: true,
     };
+  }
+  // custom functions
+  splitCollectionString(collection: string) {
+    const collectionStrings = collection.split("SPLIT_ME!");
+    return collectionStrings;
   }
 }
