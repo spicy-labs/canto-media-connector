@@ -14,6 +14,19 @@ export default class MyConnector implements Media.MediaConnector {
 
     // query before download check
     if (options.pageSize == 1 && !options.collection) {
+      const id = options.filter[0];
+      const url = `${this.runtime.options["baseURL"]}/api/v1/image/${id}`;
+
+      const resp = await this.runtime.fetch(url, {
+        method: "GET"
+      });
+
+      if(!resp.ok){
+        throw new Error("Failed to fetch info from Canto");
+      }
+
+      const data = JSON.parse(resp.text);
+      
       return {
         pageSize: options.pageSize,
         data: [{
@@ -21,7 +34,15 @@ export default class MyConnector implements Media.MediaConnector {
           name: "",
           relativePath: "",
           type: 0,
-          metaData: {}
+          metaData: {
+            "owner": data.ownerName ?? '',
+            "resolution": data.dpi ?? '',
+            "approvalStatus": data.approvalStatus ?? '',
+            "width": data.width ?? '',
+            "height": data.height ?? '',
+            "author": data.default.Author ?? '',
+            "copyright": data.default.Copyright ?? ''
+          }
         }],
         links: {
           nextPage: ""
@@ -42,22 +63,22 @@ export default class MyConnector implements Media.MediaConnector {
 
       let scheme = null;
       let id = null;
-      if(collection != "/") {
+      if (collection != "/") {
         const collectionStrings = this.splitCollectionString(collection);
         scheme = collectionStrings[0];
         id = collectionStrings[1];
       }
 
-      if(!scheme){
+      if (!scheme) {
         let url = `${this.runtime.options["baseURL"]}/api/v1/tree?sortBy=time&sortDirection=ascending&layer=1`;
-  
+
         const resp = await this.runtime.fetch(url, {
           method: "GET"
         });
-  
+
         if (resp.ok) {
           const data = (JSON.parse(resp.text)).results;
-  
+
           const dataFormatted = data.map(d => ({
             id: d.idPath,
             name: d.namePath,
@@ -65,7 +86,7 @@ export default class MyConnector implements Media.MediaConnector {
             type: 1,
             metaData: {}
           })) as Array<any>;
-  
+
           return {
             pageSize: options.pageSize,
             data: dataFormatted,
@@ -80,10 +101,10 @@ export default class MyConnector implements Media.MediaConnector {
         const resp = await this.runtime.fetch(url, {
           method: "GET"
         });
-  
+
         if (resp.ok) {
           const data = (JSON.parse(resp.text)).results;
-  
+
           const dataFormatted = data.map(d => ({
             id: d.idPath,
             name: d.namePath,
@@ -91,7 +112,7 @@ export default class MyConnector implements Media.MediaConnector {
             type: 1,
             metaData: {}
           })) as Array<any>;
-  
+
           return {
             pageSize: options.pageSize,
             data: dataFormatted,
@@ -106,29 +127,18 @@ export default class MyConnector implements Media.MediaConnector {
         const resp = await this.runtime.fetch(url, {
           method: "GET"
         });
-  
+
         if (resp.ok) {
           const data = (JSON.parse(resp.text)).results;
-  
+
           const dataFormatted = data.map(d => ({
             id: d.id,
             name: d.name,
             relativePath: "/",
             type: 0,
-            metaData: { //The content details endpoint gives a whole host of image metadata we could pull from instead here
-              // size: d.default.Size,
-              // color: d.default.Color,
-              // uploadedBy: d.default["Uploaded by"],
-              // width: d.width,
-              // height: d.height,
-              // copyright: d.default.Copyright,
-              // dateCreated: d.default["Date Created"],
-              // resolution: d.default.Resolution,
-              // tags: d.tag,
-              // approvalStatus: d.approvalStatus
-            }
+            metaData: {}
           })) as Array<any>;
-  
+
           return {
             pageSize: options.pageSize,
             data: dataFormatted,
@@ -153,18 +163,7 @@ export default class MyConnector implements Media.MediaConnector {
           name: d.name,
           relativePath: "/",
           type: 0,
-          metaData: { //The content details endpoint gives a whole host of image metadata we could pull from instead here
-            // size: d.default.Size,
-            // color: d.default.Color,
-            // uploadedBy: d.default["Uploaded by"],
-            // width: d.width,
-            // height: d.height,
-            // copyright: d.default.Copyright,
-            // dateCreated: d.default["Date Created"],
-            // resolution: d.default.Resolution,
-            // tags: d.tag,
-            // approvalStatus: d.approvalStatus
-          }
+          metaData: {}
         })) as Array<any>;
 
         return {
