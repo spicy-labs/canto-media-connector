@@ -60,8 +60,7 @@ export default class MyConnector implements Media.MediaConnector {
             "width": data.width ?? '',
             "height": data.height ?? '',
             ...data.default,
-            ...data.additional,
-            ...data.metadata
+            ...data.additional
           }
         }],
         links: {
