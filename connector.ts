@@ -40,12 +40,12 @@ export default class MyConnector implements Media.MediaConnector {
         method: "GET"
       });
 
-      if(!resp.ok){
+      if (!resp.ok) {
         throw new Error("Failed to fetch info from Canto");
       }
 
       const data = JSON.parse(resp.text);
-      
+
       return {
         pageSize: options.pageSize,
         data: [{
@@ -59,8 +59,8 @@ export default class MyConnector implements Media.MediaConnector {
             "approvalStatus": data.approvalStatus ?? '',
             "width": data.width ?? '',
             "height": data.height ?? '',
-            "author": data.default.Author ?? '',
-            "copyright": data.default.Copyright ?? ''
+            ...data.default,
+            ...data.additional
           }
         }],
         links: {
@@ -80,7 +80,7 @@ export default class MyConnector implements Media.MediaConnector {
     const collection = options.collection ?? null;
 
     // Do an intial check to see if there's a filter, browse based on that
-    if(filter != '') {
+    if (filter != '') {
       let url = `${this.runtime.options["baseURL"]}/api/v1/search${this.buildQueryParams(filter as string, tag as string, approved as boolean, options.pageSize, startIndex)}`;
       const resp = await this.runtime.fetch(url, {
         method: "GET"
@@ -234,19 +234,19 @@ export default class MyConnector implements Media.MediaConnector {
         return picture.arrayBuffer;
       }
       case "mediumres": {
-        const picture = await this.runtime.fetch(`${this.runtime.options["baseURL"]}/api_binary/v1/image/${id}/preview/400`, {method: "GET"});
+        const picture = await this.runtime.fetch(`${this.runtime.options["baseURL"]}/api_binary/v1/image/${id}/preview/400`, { method: "GET" });
         return picture.arrayBuffer;
       }
       case "highres": {
-        const picture = await this.runtime.fetch(`${this.runtime.options["baseURL"]}/api_binary/v1/image/${id}/preview/400`, {method: "GET"});
+        const picture = await this.runtime.fetch(`${this.runtime.options["baseURL"]}/api_binary/v1/image/${id}/preview/400`, { method: "GET" });
         return picture.arrayBuffer;
       }
       case "fullres": {
-        const picture = await this.runtime.fetch(`${this.runtime.options["baseURL"]}/api_binary/v1/image/${id}/preview/400`, {method: "GET"});
+        const picture = await this.runtime.fetch(`${this.runtime.options["baseURL"]}/api_binary/v1/image/${id}/preview/400`, { method: "GET" });
         return picture.arrayBuffer;
       }
       case "original": {
-        const picture = await this.runtime.fetch(`${this.runtime.options["baseURL"]}/api_binary/v1/image/${id}`, {method: "GET"});
+        const picture = await this.runtime.fetch(`${this.runtime.options["baseURL"]}/api_binary/v1/image/${id}`, { method: "GET" });
         return picture.arrayBuffer;
       }
       default: {
@@ -285,15 +285,15 @@ export default class MyConnector implements Media.MediaConnector {
   }
   // custom functions
   // setup query params
-  buildQueryParams(keyword: string, tag: string, approved: boolean, pageSize: number, startIndex: number){
+  buildQueryParams(keyword: string, tag: string, approved: boolean, pageSize: number, startIndex: number) {
     let params = `?scheme=image&limit=${pageSize}&start=${startIndex * pageSize}`;
-    if(keyword != '') {
+    if (keyword != '') {
       params += `&keyword=${keyword}`;
     }
-    if(tag != '') {
+    if (tag != '') {
       params += `&tags=${tag}`;
     }
-    if(approved){
+    if (approved) {
       params += `&approval=approved`;
     }
 
