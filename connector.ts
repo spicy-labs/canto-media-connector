@@ -1,4 +1,23 @@
 import { Connector, Media } from "@chili-publish/studio-connectors";
+type CantoItem = CantoFolder | CantoAlbum;
+
+type CantoFolder = {
+  id: string,
+  idPath: string,
+  name: string,
+  scheme: "folder",
+  size: number,
+  children: CantoItem[]
+}
+
+type CantoAlbum = {
+  id: string,
+  idPath: string,
+  name: string,
+  size: number,
+  scheme: "album"
+}
+
 export default class MyConnector implements Media.MediaConnector {
 
   private runtime: Connector.ConnectorRuntimeContext;
@@ -90,79 +109,65 @@ export default class MyConnector implements Media.MediaConnector {
     }
     if (browseFolders) {
 
-      let scheme = null;
-      let id = null;
-      if (collection != "/") {
-        const collectionStrings = this.splitCollectionString(collection);
-        scheme = collectionStrings[0];
-        id = collectionStrings[1];
+      this.runtime.logError(JSON.stringify(options));
+
+      const { path, scheme } = (JSON.parse(options.collection.split("$$")[1] ?? `{ "path": "/", "scheme": "folder" }`)) as { path: string, scheme: "folder" | "album" };
+
+      this.runtime.logError(path)
+
+      const pathSteps = path.split("/").filter(p => p);
+
+      if (scheme == "folder") {
+
+        let url = `${this.runtime.options["baseURL"]}/api/v1/tree?sortBy=scheme&sortDirection=ascending&layer=-1`;
+
+        const resp = await this.runtime.fetch(url, {
+          method: "GET"
+        });
+
+        if (resp.ok) {
+          const allDirectories = (JSON.parse(resp.text)).results as CantoItem[];
+
+          const currentDir = pathSteps.length == 0 ? allDirectories : pathSteps.reduce((p, c) => {
+            return (p.find(item => item.id == c) as CantoFolder).children
+          }, allDirectories);
+
+
+          const dataFormatted = currentDir.filter(d => d.scheme == "folder" || d.scheme == "album").map(d => ({
+            id: d.idPath,
+            name: d.name,
+            relativePath: "$$" + JSON.stringify({ path: d.idPath, scheme: d.scheme }) + "$$",
+            type: 1,
+            metaData: {}
+          })) as Array<any>;
+
+          return {
+            pageSize: options.pageSize,
+            data: dataFormatted,
+            links: {
+              nextPage: ''
+            }
+          }
+        }
       }
 
-      if (!scheme) {
-        let url = `${this.runtime.options["baseURL"]}/api/v1/tree?sortBy=time&sortDirection=ascending&layer=1`;
+      if (scheme == "album") {
+
+        const id = pathSteps[pathSteps.length - 1];
+        let url = `${this.runtime.options["baseURL"]}/rest/search/album/${id}?aggsEnabled=true&sortBy=created&sortDirection=false&size=${options.pageSize}&type=image&start=${startIndex}`;
 
         const resp = await this.runtime.fetch(url, {
           method: "GET"
         });
 
         if (resp.ok) {
-          const data = (JSON.parse(resp.text)).results;
+          const imagesFound = JSON.parse(resp.text).hits;
+          const images = imagesFound.hit.filter(img => img.scheme == "image");
 
-          const dataFormatted = data.map(d => ({
-            id: d.idPath,
-            name: d.namePath,
-            relativePath: `${d.scheme}SPLIT_ME!${d.idPath}SPLIT_ME!`,
-            type: 1,
-            metaData: {}
-          })) as Array<any>;
 
-          return {
-            pageSize: options.pageSize,
-            data: dataFormatted,
-            links: {
-              nextPage: ''
-            }
-          }
-        }
-      } else if (scheme == "/folder") {
-        let url = `${this.runtime.options["baseURL"]}/api/v1/tree/${id}?sortBy=time&sortDirection=ascending&layer=1`;
-
-        const resp = await this.runtime.fetch(url, {
-          method: "GET"
-        });
-
-        if (resp.ok) {
-          const data = (JSON.parse(resp.text)).results;
-
-          const dataFormatted = data.map(d => ({
-            id: d.idPath,
-            name: d.namePath,
-            relativePath: `${d.scheme}SPLIT_ME!${d.idPath}SPLIT_ME!`,
-            type: 1,
-            metaData: {}
-          })) as Array<any>;
-
-          return {
-            pageSize: options.pageSize,
-            data: dataFormatted,
-            links: {
-              nextPage: ''
-            }
-          }
-        }
-      } else if (scheme == "/album") {
-        let url = `${this.runtime.options["baseURL"]}/api/v1/album/${id}?scheme=image&limit=${options.pageSize}&start=${startIndex * options.pageSize}&sortBy=time&sortDirection=ascending`;
-
-        const resp = await this.runtime.fetch(url, {
-          method: "GET"
-        });
-
-        if (resp.ok) {
-          const data = (JSON.parse(resp.text)).results;
-
-          const dataFormatted = data.map(d => ({
-            id: d.id,
-            name: d.name,
+          const dataFormatted = images.map(d => ({
+            id: d.path,
+            name: d.displayName,
             relativePath: "/",
             type: 0,
             metaData: {}
@@ -172,14 +177,15 @@ export default class MyConnector implements Media.MediaConnector {
             pageSize: options.pageSize,
             data: dataFormatted,
             links: {
-              nextPage: `${dataFormatted.length < options.pageSize ? '' : startIndex + 1}`
+              nextPage: ``
             }
           }
-        }
-      }
-    } else { //Filter search mode
 
-      
+
+        }
+
+      }
+    } else { //Filter search mode      
       let url = `${this.runtime.options["baseURL"]}/api/v1/search${this.buildQueryParams(query as string, tag as string, approved as boolean, options.pageSize, startIndex)}`;
       const resp = await this.runtime.fetch(url, {
         method: "GET"
