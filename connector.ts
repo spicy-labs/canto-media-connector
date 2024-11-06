@@ -230,11 +230,27 @@ export default class MyConnector implements Media.MediaConnector {
   ): Promise<Connector.ArrayBufferPointer> {
     switch (previewType) {
       case "thumbnail": {
-        const picture = await this.runtime.fetch(`${this.runtime.options["baseURL"]}/api_binary/v1/image/${id}/preview`, { method: "GET" });
+        const picture = await this.runtime.fetch(`${this.runtime.options["baseURL"]}/api_binary/v1/image/${id}/preview/240`, { method: "GET" });
+        return picture.arrayBuffer;
+      }
+      case "mediumres": {
+        const picture = await this.runtime.fetch(`${this.runtime.options["baseURL"]}/api_binary/v1/image/${id}/preview/400`, {method: "GET"});
+        return picture.arrayBuffer;
+      }
+      case "highres": {
+        const picture = await this.runtime.fetch(`${this.runtime.options["baseURL"]}/api_binary/v1/image/${id}/preview/400`, {method: "GET"});
+        return picture.arrayBuffer;
+      }
+      case "fullres": {
+        const picture = await this.runtime.fetch(`${this.runtime.options["baseURL"]}/api_binary/v1/image/${id}/preview/400`, {method: "GET"});
+        return picture.arrayBuffer;
+      }
+      case "original": {
+        const picture = await this.runtime.fetch(`${this.runtime.options["baseURL"]}/api_binary/v1/image/${id}`, {method: "GET"});
         return picture.arrayBuffer;
       }
       default: {
-        const picture = await this.runtime.fetch(`${this.runtime.options["baseURL"]}/api_binary/v1/image/${id}/PNG`, { method: "GET" });
+        const picture = await this.runtime.fetch(`${this.runtime.options["baseURL"]}/api_binary/v1/image/${id}/preview/240`, { method: "GET" });
         return picture.arrayBuffer;
       }
     }
@@ -268,11 +284,6 @@ export default class MyConnector implements Media.MediaConnector {
     };
   }
   // custom functions
-  splitCollectionString(collection: string) {
-    const collectionStrings = collection.split("SPLIT_ME!");
-    return collectionStrings;
-  }
-
   // setup query params
   buildQueryParams(keyword: string, tag: string, approved: boolean, pageSize: number, startIndex: number){
     let params = `?scheme=image&limit=${pageSize}&start=${startIndex * pageSize}`;
