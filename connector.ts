@@ -53,15 +53,42 @@ export default class MyConnector implements Media.MediaConnector {
     // normal query
     const startIndex = Number(options.pageToken) || 0;
     const query = context['query'] ?? '';
-    // const tagSearch = context['tagSearch'] ?? '';
     const tag = context['tagFilter'] ?? '';
     const filter = options.filter[0] ?? '';
-    const finalQuery = filter + query;
+    // const finalQuery = filter + query;
     const browseFolders = context['folderView'] ?? false;
     const approved = context['approved'] ?? false;
     const collection = options.collection ?? null;
 
-    if (browseFolders) {
+    // Do an intial check to see if there's a filter, browse based on that
+    if(filter != '') {
+      let url = `${this.runtime.options["baseURL"]}/api/v1/search${this.buildQueryParams(filter as string, tag as string, approved as boolean, options.pageSize, startIndex)}`;
+      const resp = await this.runtime.fetch(url, {
+        method: "GET"
+      });
+
+      if (resp.ok) {
+        const data = (JSON.parse(resp.text)).results;
+
+        const dataFormatted = data.map(d => ({
+          id: d.id,
+          name: d.name,
+          relativePath: "/",
+          type: 0,
+          metaData: {}
+        })) as Array<any>;
+
+        return {
+          pageSize: options.pageSize,
+          data: dataFormatted,
+          links: {
+            nextPage: `${dataFormatted.length < options.pageSize ? '' : startIndex + 1}`
+          }
+        }
+      }
+
+    }
+    if (browseFolders) { //real quick test, invert to see if main browser cooperates
 
       let scheme = null;
       let id = null;
@@ -153,7 +180,7 @@ export default class MyConnector implements Media.MediaConnector {
     } else { //Filter search mode
 
       
-      let url = `${this.runtime.options["baseURL"]}/api/v1/search${this.buildQueryParams(finalQuery as string, tag as string, approved as boolean, options.pageSize, startIndex)}`;
+      let url = `${this.runtime.options["baseURL"]}/api/v1/search${this.buildQueryParams(query as string, tag as string, approved as boolean, options.pageSize, startIndex)}`;
       const resp = await this.runtime.fetch(url, {
         method: "GET"
       });
