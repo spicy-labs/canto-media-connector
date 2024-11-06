@@ -284,11 +284,6 @@ export default class MyConnector implements Media.MediaConnector {
     };
   }
   // custom functions
-  splitCollectionString(collection: string) {
-    const collectionStrings = collection.split("SPLIT_ME!");
-    return collectionStrings;
-  }
-
   // setup query params
   buildQueryParams(keyword: string, tag: string, approved: boolean, pageSize: number, startIndex: number){
     let params = `?scheme=image&limit=${pageSize}&start=${startIndex * pageSize}`;
