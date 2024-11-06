@@ -88,7 +88,7 @@ export default class MyConnector implements Media.MediaConnector {
       }
 
     }
-    if (browseFolders) { //real quick test, invert to see if main browser cooperates
+    if (browseFolders) {
 
       let scheme = null;
       let id = null;
