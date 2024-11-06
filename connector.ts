@@ -72,13 +72,41 @@ export default class MyConnector implements Media.MediaConnector {
     // normal query
     const startIndex = Number(options.pageToken) || 0;
     const query = context['query'] ?? '';
-    const tagQuery = context['tag'] ?? '';
+    const tag = context['tagFilter'] ?? '';
     const filter = options.filter[0] ?? '';
-    const finalQuery = filter + query;
+    // const finalQuery = filter + query;
     const browseFolders = context['folderView'] ?? false;
+    const approved = context['approved'] ?? false;
     const collection = options.collection ?? null;
 
+    // Do an intial check to see if there's a filter, browse based on that
+    if(filter != '') {
+      let url = `${this.runtime.options["baseURL"]}/api/v1/search${this.buildQueryParams(filter as string, tag as string, approved as boolean, options.pageSize, startIndex)}`;
+      const resp = await this.runtime.fetch(url, {
+        method: "GET"
+      });
 
+      if (resp.ok) {
+        const data = (JSON.parse(resp.text)).results;
+
+        const dataFormatted = data.map(d => ({
+          id: d.id,
+          name: d.name,
+          relativePath: "/",
+          type: 0,
+          metaData: {}
+        })) as Array<any>;
+
+        return {
+          pageSize: options.pageSize,
+          data: dataFormatted,
+          links: {
+            nextPage: `${dataFormatted.length < options.pageSize ? '' : startIndex + 1}`
+          }
+        }
+      }
+
+    }
     if (browseFolders) {
 
       this.runtime.logError(JSON.stringify(options));
@@ -157,10 +185,8 @@ export default class MyConnector implements Media.MediaConnector {
         }
 
       }
-
-    } else {
-      let url = `${this.runtime.options["baseURL"]}/api/v1/search?scheme=image&limit=${options.pageSize}&start=${startIndex * options.pageSize}${(finalQuery != '') ? `&keyword=${finalQuery}` : ''}${(tagQuery != '') ? `&tags=${tagQuery}` : ''}`;
-
+    } else { //Filter search mode      
+      let url = `${this.runtime.options["baseURL"]}/api/v1/search${this.buildQueryParams(query as string, tag as string, approved as boolean, options.pageSize, startIndex)}`;
       const resp = await this.runtime.fetch(url, {
         method: "GET"
       });
@@ -216,12 +242,17 @@ export default class MyConnector implements Media.MediaConnector {
   getConfigurationOptions(): Connector.ConnectorConfigValue[] | null {
     return [{
       name: "query",
-      displayName: "Search Query",
+      displayName: "Keyword filter",
       type: "text"
     }, {
-      name: "tag",
-      displayName: "Tag(s)",
+      name: "tagFilter",
+      displayName: "Tag filter",
       type: "text"
+    },
+    {
+      name: "approved",
+      displayName: "Only show approved",
+      type: "boolean"
     }, {
       name: "folderView",
       displayName: "Folder View",
@@ -240,5 +271,21 @@ export default class MyConnector implements Media.MediaConnector {
   splitCollectionString(collection: string) {
     const collectionStrings = collection.split("SPLIT_ME!");
     return collectionStrings;
+  }
+
+  // setup query params
+  buildQueryParams(keyword: string, tag: string, approved: boolean, pageSize: number, startIndex: number){
+    let params = `?scheme=image&limit=${pageSize}&start=${startIndex * pageSize}`;
+    if(keyword != '') {
+      params += `&keyword=${keyword}`;
+    }
+    if(tag != '') {
+      params += `&tags=${tag}`;
+    }
+    if(approved){
+      params += `&approval=approved`;
+    }
+
+    return params;
   }
 }
