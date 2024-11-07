@@ -44,6 +44,8 @@ export default class MyConnector implements Media.MediaConnector {
         throw new Error("Failed to fetch info from Canto");
       }
 
+      this.runtime.logError(resp.text);
+
       const data = JSON.parse(resp.text);
 
       return {
@@ -59,8 +61,8 @@ export default class MyConnector implements Media.MediaConnector {
             "approvalStatus": data.approvalStatus ?? '',
             "width": data.width ?? '',
             "height": data.height ?? '',
-            ...data.default,
-            ...data.additional
+            ...toDictionary(data.default),
+            ...toDictionary(data.additional)
           }
         }],
         links: {
@@ -228,6 +230,10 @@ export default class MyConnector implements Media.MediaConnector {
     intent: Media.DownloadIntent,
     context: Connector.Dictionary
   ): Promise<Connector.ArrayBufferPointer> {
+
+
+    this.runtime.logError(id)
+
     switch (previewType) {
       case "thumbnail": {
         const picture = await this.runtime.fetch(`${this.runtime.options["baseURL"]}/api_binary/v1/image/${id}/preview/240`, { method: "GET" });
@@ -299,4 +305,28 @@ export default class MyConnector implements Media.MediaConnector {
 
     return params;
   }
+}
+
+function toDictionary(obj: Record<string, any>): Record<string, string | boolean> {
+  const result: Record<string, string | boolean> = {};
+
+  for (const [key, value] of Object.entries(obj)) {
+    if (value === null || value === undefined) {
+      result[key] = "";
+    } else if (typeof value === "boolean") {
+      result[key] = value;
+    } else if (Array.isArray(value)) {
+      result[key] = value.join(",");
+    } else if (value instanceof Date) {
+      result[key] = value.toISOString();
+    } else if (typeof value === "object") {
+      result[key] = JSON.stringify(value);
+    } else if (typeof value === "symbol" || typeof value === "bigint" || typeof value === "function") {
+      result[key] = value.toString();
+    } else {
+      result[key] = String(value);
+    }
+  }
+
+  return result;
 }
