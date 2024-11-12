@@ -44,8 +44,6 @@ export default class MyConnector implements Media.MediaConnector {
         throw new Error("Failed to fetch info from Canto");
       }
 
-      this.runtime.logError(resp.text);
-
       const data = JSON.parse(resp.text);
 
       return {
@@ -187,7 +185,8 @@ export default class MyConnector implements Media.MediaConnector {
         }
 
       }
-    } else { //Filter search mode      
+    }
+    else { //Filter search mode      
       let url = `${this.runtime.options["baseURL"]}/api/v1/search${this.buildQueryParams(query as string, tag as string, approved as boolean, options.pageSize, startIndex)}`;
       const resp = await this.runtime.fetch(url, {
         method: "GET"
@@ -232,6 +231,26 @@ export default class MyConnector implements Media.MediaConnector {
   ): Promise<Connector.ArrayBufferPointer> {
 
 
+    if (context["failNotApproved"]) {
+
+      const url = `${this.runtime.options["baseURL"]}/api/v1/image/${id}`;
+
+      const resp = await this.runtime.fetch(url, {
+        method: "GET"
+      });
+
+      if (!resp.ok) {
+        throw new Error("Failed to fetch info from Canto");
+      }
+
+      const data = JSON.parse(resp.text);
+
+      if (data.approvalStatus != "Approved") {
+        throw "Image Not Approve"
+      }
+
+    }
+
     this.runtime.logError(id)
 
     switch (previewType) {
@@ -262,24 +281,31 @@ export default class MyConnector implements Media.MediaConnector {
     }
   }
   getConfigurationOptions(): Connector.ConnectorConfigValue[] | null {
-    return [{
-      name: "query",
-      displayName: "Keyword filter",
-      type: "text"
-    }, {
-      name: "tagFilter",
-      displayName: "Tag filter",
-      type: "text"
-    },
-    {
-      name: "approved",
-      displayName: "Only show approved",
-      type: "boolean"
-    }, {
-      name: "folderView",
-      displayName: "Folder View",
-      type: "boolean"
-    }];
+    return [
+      {
+        name: "folderView",
+        displayName: "Folder View (keyword and tag will be ignored",
+        type: "boolean"
+      },
+      {
+        name: "query",
+        displayName: "Keyword filter",
+        type: "text"
+      }, {
+        name: "tagFilter",
+        displayName: "Tag filter",
+        type: "text"
+      },
+      {
+        name: "approved",
+        displayName: "Only show approved",
+        type: "boolean"
+      },
+      {
+        name: "failNotApproved",
+        displayName: "Fail Loading and Output if not approved",
+        type: "boolean"
+      }];
   }
   getCapabilities(): Media.MediaConnectorCapabilities {
     return {
