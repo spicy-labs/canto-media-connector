@@ -59,8 +59,8 @@ export default class MyConnector implements Media.MediaConnector {
             "approvalStatus": data.approvalStatus ?? '',
             "width": data.width ?? '',
             "height": data.height ?? '',
-            ...data.default,
-            ...data.additional
+            ...toDictionary(data.default),
+            ...toDictionary(data.additional)
           }
         }],
         links: {
@@ -185,7 +185,8 @@ export default class MyConnector implements Media.MediaConnector {
         }
 
       }
-    } else { //Filter search mode      
+    }
+    else { //Filter search mode      
       let url = `${this.runtime.options["baseURL"]}/api/v1/search${this.buildQueryParams(query as string, tag as string, approved as boolean, options.pageSize, startIndex)}`;
       const resp = await this.runtime.fetch(url, {
         method: "GET"
@@ -228,6 +229,30 @@ export default class MyConnector implements Media.MediaConnector {
     intent: Media.DownloadIntent,
     context: Connector.Dictionary
   ): Promise<Connector.ArrayBufferPointer> {
+
+
+    if (context["failNotApproved"]) {
+
+      const url = `${this.runtime.options["baseURL"]}/api/v1/image/${id}`;
+
+      const resp = await this.runtime.fetch(url, {
+        method: "GET"
+      });
+
+      if (!resp.ok) {
+        throw new Error("Failed to fetch info from Canto");
+      }
+
+      const data = JSON.parse(resp.text);
+
+      if (data.approvalStatus != "Approved") {
+        throw "Image Not Approve"
+      }
+
+    }
+
+    this.runtime.logError(id)
+
     switch (previewType) {
       case "thumbnail": {
         const picture = await this.runtime.fetch(`${this.runtime.options["baseURL"]}/api_binary/v1/image/${id}/preview/240`, { method: "GET" });
@@ -256,24 +281,31 @@ export default class MyConnector implements Media.MediaConnector {
     }
   }
   getConfigurationOptions(): Connector.ConnectorConfigValue[] | null {
-    return [{
-      name: "query",
-      displayName: "Keyword filter",
-      type: "text"
-    }, {
-      name: "tagFilter",
-      displayName: "Tag filter",
-      type: "text"
-    },
-    {
-      name: "approved",
-      displayName: "Only show approved",
-      type: "boolean"
-    }, {
-      name: "folderView",
-      displayName: "Folder View",
-      type: "boolean"
-    }];
+    return [
+      {
+        name: "folderView",
+        displayName: "Folder View (keyword and tag will be ignored",
+        type: "boolean"
+      },
+      {
+        name: "query",
+        displayName: "Keyword filter",
+        type: "text"
+      }, {
+        name: "tagFilter",
+        displayName: "Tag filter",
+        type: "text"
+      },
+      {
+        name: "approved",
+        displayName: "Only show approved",
+        type: "boolean"
+      },
+      {
+        name: "failNotApproved",
+        displayName: "Fail Loading and Output if not approved",
+        type: "boolean"
+      }];
   }
   getCapabilities(): Media.MediaConnectorCapabilities {
     return {
@@ -299,4 +331,28 @@ export default class MyConnector implements Media.MediaConnector {
 
     return params;
   }
+}
+
+function toDictionary(obj: Record<string, any>): Record<string, string | boolean> {
+  const result: Record<string, string | boolean> = {};
+
+  for (const [key, value] of Object.entries(obj)) {
+    if (value === null || value === undefined) {
+      result[key] = "";
+    } else if (typeof value === "boolean") {
+      result[key] = value;
+    } else if (Array.isArray(value)) {
+      result[key] = value.join(",");
+    } else if (value instanceof Date) {
+      result[key] = value.toISOString();
+    } else if (typeof value === "object") {
+      result[key] = JSON.stringify(value);
+    } else if (typeof value === "symbol" || typeof value === "bigint" || typeof value === "function") {
+      result[key] = value.toString();
+    } else {
+      result[key] = String(value);
+    }
+  }
+
+  return result;
 }
