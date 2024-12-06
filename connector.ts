@@ -74,14 +74,14 @@ export default class MyConnector implements Media.MediaConnector {
     const query = context['query'] ?? '';
     const tag = context['tagFilter'] ?? '';
     const filter = options.filter[0] ?? '';
-    // const finalQuery = filter + query;
+    const albumFilter = context['albumFilter'] ?? '';
     const browseFolders = context['folderView'] ?? false;
     const approved = context['approved'] ?? false;
     const collection = options.collection ?? null;
 
     // Do an intial check to see if there's a filter, browse based on that
     if (filter != '') {
-      let url = `${this.runtime.options["baseURL"]}/api/v1/search${this.buildQueryParams(filter as string, tag as string, approved as boolean, options.pageSize, startIndex)}`;
+      let url = this.buildSearchURL(filter as string, tag as string, albumFilter as string, approved as boolean, options.pageSize, startIndex);
       const resp = await this.runtime.fetch(url, {
         method: "GET"
       });
@@ -186,22 +186,33 @@ export default class MyConnector implements Media.MediaConnector {
 
       }
     }
-    else { //Filter search mode      
-      let url = `${this.runtime.options["baseURL"]}/api/v1/search${this.buildQueryParams(query as string, tag as string, approved as boolean, options.pageSize, startIndex)}`;
-      const resp = await this.runtime.fetch(url, {
-        method: "GET"
-      });
+    else { //Filter search mode
+      // Check if multiple album IDs were provided
+      if((albumFilter as string).includes("&")){
+        // split albumFilter along &
+        const albums = (albumFilter as string).split("&");
+        let dataFormatted = [];
 
-      if (resp.ok) {
-        const data = (JSON.parse(resp.text)).results;
+        for(let i = 0; i < albums.length; i++){
+          let url =  this.buildSearchURL(filter as string, tag as string, albums[i].trim(), approved as boolean, options.pageSize, startIndex);
+          const resp = await this.runtime.fetch(url, {
+            method: "GET"
+          });
 
-        const dataFormatted = data.map(d => ({
-          id: d.id,
-          name: d.name,
-          relativePath: "/",
-          type: 0,
-          metaData: {}
-        })) as Array<any>;
+          if(resp.ok) {
+            const data = (JSON.parse(resp.text)).results;
+
+            if(data){
+              dataFormatted = dataFormatted.concat(data.map(d => ({
+                id: d.id,
+                name: d.name,
+                relativePath: "/",
+                type: 0,
+                metaData: {}
+              })) as Array<any>);
+            }
+          }
+        }
 
         return {
           pageSize: options.pageSize,
@@ -211,7 +222,32 @@ export default class MyConnector implements Media.MediaConnector {
           }
         }
       }
-
+      else {
+        let url = this.buildSearchURL(filter as string, tag as string, albumFilter as string, approved as boolean, options.pageSize, startIndex);
+        const resp = await this.runtime.fetch(url, {
+          method: "GET"
+        });
+  
+        if (resp.ok && resp.status != 404) {
+          const data = (JSON.parse(resp.text)).results;
+  
+          const dataFormatted = data.map(d => ({
+            id: d.id,
+            name: d.name,
+            relativePath: "/",
+            type: 0,
+            metaData: {}
+          })) as Array<any>;
+  
+          return {
+            pageSize: options.pageSize,
+            data: dataFormatted,
+            links: {
+              nextPage: `${dataFormatted.length < options.pageSize ? '' : startIndex + 1}`
+            }
+          }
+        }
+      }
       // error handling
       throw new Error("Failed to fetch images from Canto!");
     }
@@ -291,9 +327,14 @@ export default class MyConnector implements Media.MediaConnector {
         name: "query",
         displayName: "Keyword filter",
         type: "text"
-      }, {
+      }, { 
         name: "tagFilter",
         displayName: "Tag filter",
+        type: "text"
+      },
+      {
+        name: "albumFilter",
+        displayName: "Album filter",
         type: "text"
       },
       {
@@ -316,20 +357,24 @@ export default class MyConnector implements Media.MediaConnector {
     };
   }
   // custom functions
-  // setup query params
-  buildQueryParams(keyword: string, tag: string, approved: boolean, pageSize: number, startIndex: number) {
-    let params = `?scheme=image&limit=${pageSize}&start=${startIndex * pageSize}`;
+  // build search URL
+  buildSearchURL(keyword: string, tag: string, album: string, approved: boolean, pageSize: number, startIndex: number) {
+    let url = `${this.runtime.options["baseURL"]}/api/v1/search?scheme=image&limit=${pageSize}&start=${startIndex * pageSize}`;
+    // Check if there's an album provided first, that changes the base endpoint
+    if (album != '') {
+      url = `${this.runtime.options["baseURL"]}/api/v1/album/${album}?scheme=image&limit=${pageSize}&start=${startIndex * pageSize}`;
+    }
     if (keyword != '') {
-      params += `&keyword=${keyword}`;
+      url += `&keyword=${keyword}`;
     }
     if (tag != '') {
-      params += `&tags=${tag}`;
+      url += `&tags=${tag}`;
     }
     if (approved) {
-      params += `&approval=approved`;
+      url += `&approval=approved`;
     }
 
-    return params;
+    return url;
   }
 }
 
