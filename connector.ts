@@ -81,7 +81,7 @@ export default class MyConnector implements Media.MediaConnector {
 
     // Do an intial check to see if there's a filter, browse based on that
     if (filter != '') {
-      let url = this.buildSearchURL(filter as string, tag as string, albumFilter as string, approved as boolean, options.pageSize, startIndex);
+      let url = buildSearchURL(filter as string, tag as string, albumFilter as string, approved as boolean, options.pageSize, startIndex);
       const resp = await this.runtime.fetch(url, {
         method: "GET"
       });
@@ -194,7 +194,7 @@ export default class MyConnector implements Media.MediaConnector {
         let dataFormatted = [];
 
         for(let i = 0; i < albums.length; i++){
-          let url =  this.buildSearchURL(filter as string, tag as string, albums[i].trim(), approved as boolean, options.pageSize, startIndex);
+          let url =  buildSearchURL(filter as string, tag as string, albums[i].trim(), approved as boolean, options.pageSize, startIndex);
           const resp = await this.runtime.fetch(url, {
             method: "GET"
           });
@@ -223,7 +223,7 @@ export default class MyConnector implements Media.MediaConnector {
         }
       }
       else {
-        let url = this.buildSearchURL(filter as string, tag as string, albumFilter as string, approved as boolean, options.pageSize, startIndex);
+        let url = buildSearchURL(filter as string, tag as string, albumFilter as string, approved as boolean, options.pageSize, startIndex);
         const resp = await this.runtime.fetch(url, {
           method: "GET"
         });
@@ -358,24 +358,44 @@ export default class MyConnector implements Media.MediaConnector {
   }
   // custom functions
   // build search URL
-  buildSearchURL(keyword: string, tag: string, album: string, approved: boolean, pageSize: number, startIndex: number) {
-    let url = `${this.runtime.options["baseURL"]}/api/v1/search?scheme=image&limit=${pageSize}&start=${startIndex * pageSize}`;
-    // Check if there's an album provided first, that changes the base endpoint
-    if (album != '') {
-      url = `${this.runtime.options["baseURL"]}/api/v1/album/${album}?scheme=image&limit=${pageSize}&start=${startIndex * pageSize}`;
-    }
-    if (keyword != '') {
-      url += `&keyword=${keyword}`;
-    }
-    if (tag != '') {
-      url += `&tags=${tag}`;
-    }
-    if (approved) {
-      url += `&approval=approved`;
-    }
+  // buildSearchURL(keyword: string, tag: string, album: string, approved: boolean, pageSize: number, startIndex: number) {
+  //   let url = `${this.runtime.options["baseURL"]}/api/v1/search?scheme=image&limit=${pageSize}&start=${startIndex * pageSize}`;
+  //   // Check if there's an album provided first, that changes the base endpoint
+  //   if (album != '') {
+  //     url = `${this.runtime.options["baseURL"]}/api/v1/album/${album}?scheme=image&limit=${pageSize}&start=${startIndex * pageSize}`;
+  //   }
+  //   if (keyword != '') {
+  //     url += `&keyword=${keyword}`;
+  //   }
+  //   if (tag != '') {
+  //     url += `&tags=${tag}`;
+  //   }
+  //   if (approved) {
+  //     url += `&approval=approved`;
+  //   }
 
-    return url;
+  //   return url;
+  // }
+}
+
+// Build search URL
+function buildSearchURL(keyword: string, tag: string, album: string, approved: boolean, pageSize: number, startIndex: number) {
+  let url = `${this.runtime.options["baseURL"]}/api/v1/search?scheme=image&limit=${pageSize}&start=${startIndex * pageSize}`;
+  // Check if there's an album provided first, that changes the base endpoint
+  if (album != '') {
+    url = `${this.runtime.options["baseURL"]}/api/v1/album/${album}?scheme=image&limit=${pageSize}&start=${startIndex * pageSize}`;
   }
+  if (keyword != '') {
+    url += `&keyword=${keyword}`;
+  }
+  if (tag != '') {
+    url += `&tags=${tag}`;
+  }
+  if (approved) {
+    url += `&approval=approved`;
+  }
+
+  return url;
 }
 
 function toDictionary(obj: Record<string, any>): Record<string, string | boolean> {
