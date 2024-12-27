@@ -282,7 +282,7 @@ export default class MyConnector implements Media.MediaConnector {
       const data = JSON.parse(resp.text);
 
       if (data.approvalStatus != "Approved") {
-        throw "Image Not Approve"
+        throw new Error("Image Not Approve");
       }
 
     }
@@ -303,7 +303,7 @@ export default class MyConnector implements Media.MediaConnector {
         return picture.arrayBuffer;
       }
       case "fullres": {
-        const picture = await this.runtime.fetch(`${this.runtime.options["baseURL"]}/api_binary/v1/image/${id}/preview/400`, { method: "GET" });
+        const picture = await this.runtime.fetch(`${this.runtime.options["baseURL"]}/api_binary/v1/image/${id}/PNG`, { method: "GET" });
         return picture.arrayBuffer;
       }
       case "original": {
