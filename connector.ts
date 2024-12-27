@@ -111,32 +111,39 @@ export default class MyConnector implements Media.MediaConnector {
 
       this.runtime.logError(JSON.stringify(options));
 
-      const { path, scheme } = (JSON.parse(options.collection.split("$$")[1] ?? `{ "path": "/", "scheme": "folder" }`)) as { path: string, scheme: "folder" | "album" };
+      let url = `${this.runtime.options["baseURL"]}/api/v1/tree?sortBy=scheme&sortDirection=ascending&layer=-1`;
 
-      this.runtime.logError(path)
+      const resp = await this.runtime.fetch(url, {
+        method: "GET"
+      });
 
-      const pathSteps = path.split("/").filter(p => p);
+      if (resp.ok) {
+        const allCantoItems = (JSON.parse(resp.text)).results as CantoItem[];
 
-      if (scheme == "folder") {
+        const [_, ...pathParts] = (collection ?? "/").split("/") as string[];
 
-        let url = `${this.runtime.options["baseURL"]}/api/v1/tree?sortBy=scheme&sortDirection=ascending&layer=-1`;
+        if (pathParts == null) {
+          throw new Error("pathParts was null")
+          // super rare with behavior - not sure is possible, but do something about it
+        }
 
-        const resp = await this.runtime.fetch(url, {
-          method: "GET"
-        });
+        const foundCantoItems = pathParts.reduce((currentCantoItem, pathPart) => {
+          const matchCantoItem = currentCantoItem.find(dir => dir.name == pathPart)
 
-        if (resp.ok) {
-          const allDirectories = (JSON.parse(resp.text)).results as CantoItem[];
+          if (!matchCantoItem) throw new Error(`Could rnot find item with name: ${pathPart}`);
 
-          const currentDir = pathSteps.length == 0 ? allDirectories : pathSteps.reduce((p, c) => {
-            return (p.find(item => item.id == c) as CantoFolder).children
-          }, allDirectories);
+          return (matchCantoItem.scheme == "folder") ?
+            matchCantoItem.children.filter(item => item.scheme == "folder" || item.scheme == "album") :
+            matchCantoItem;
 
+        }, allCantoItems.filter(item => item.scheme == "folder" || item.scheme == "album"));
 
-          const dataFormatted = currentDir.filter(d => d.scheme == "folder" || d.scheme == "album").map(d => ({
+        if (Array.isArray(foundCantoItems)) {
+
+          const dataFormatted = foundCantoItems.map(d => ({
             id: d.idPath,
             name: d.name,
-            relativePath: "$$" + JSON.stringify({ path: d.idPath, scheme: d.scheme }) + "$$",
+            relativePath: collection,
             type: 1,
             metaData: {}
           })) as Array<any>;
@@ -149,60 +156,71 @@ export default class MyConnector implements Media.MediaConnector {
             }
           }
         }
-      }
+        else {
+          const cantoItem = foundCantoItems;
 
-      if (scheme == "album") {
+          if (cantoItem.scheme != "album") throw new Error("How did you even get here?");
 
-        const id = pathSteps[pathSteps.length - 1];
-        let url = `${this.runtime.options["baseURL"]}/rest/search/album/${id}?aggsEnabled=true&sortBy=created&sortDirection=false&size=${options.pageSize}&type=image&start=${startIndex}`;
+          const id = cantoItem.id;
+          let url = `${this.runtime.options["baseURL"]}/rest/search/album/${id}?aggsEnabled=true&sortBy=created&sortDirection=false&size=${options.pageSize}&type=image&start=${startIndex}`;
 
-        const resp = await this.runtime.fetch(url, {
-          method: "GET"
-        });
-
-        if (resp.ok) {
-          const imagesFound = JSON.parse(resp.text).hits;
-          const images = imagesFound.hit.filter(img => img.scheme == "image");
-
-
-          const dataFormatted = images.map(d => ({
-            id: d.path,
-            name: d.displayName,
-            relativePath: "/",
-            type: 0,
-            metaData: {}
-          })) as Array<any>;
-
-          return {
-            pageSize: options.pageSize,
-            data: dataFormatted,
-            links: {
-              nextPage: ``
-            }
-          }
-
-
-        }
-
-      }
-    }
-    else { //Filter search mode
-      // Check if multiple album IDs were provided
-      if((albumFilter as string).includes("&")){
-        // split albumFilter along &
-        const albums = (albumFilter as string).split("&");
-        let dataFormatted = [];
-
-        for(let i = 0; i < albums.length; i++){
-          let url =  this.buildSearchURL(filter as string, tag as string, albums[i].trim(), approved as boolean, options.pageSize, startIndex);
           const resp = await this.runtime.fetch(url, {
             method: "GET"
           });
 
-          if(resp.ok) {
+          if (resp.ok) {
+            const imagesFound = JSON.parse(resp.text).hits;
+            const images = imagesFound.hit.filter(img => img.scheme == "image");
+
+
+            const dataFormatted = images.map(d => ({
+              id: d.path,
+              name: d.displayName,
+              relativePath: "/",
+              type: 0,
+              metaData: {}
+            })) as Array<any>;
+
+            return {
+              pageSize: options.pageSize,
+              data: dataFormatted,
+              links: {
+                nextPage: ``
+              }
+            }
+
+
+          }
+          else {
+
+            throw new Error("Failed to fetch alumb images from Canto!");
+
+          }
+
+        }
+      }
+      else {
+
+        throw new Error("Failed to fetch directory items from Canto!");
+      }
+    }
+    else { //Filter search mode
+      // Check if multiple album IDs were provided
+      if ((albumFilter as string).includes("&")) {
+        // split albumFilter along &
+        const albums = (albumFilter as string).split("&");
+        let dataFormatted = [];
+
+        for (let i = 0; i < albums.length; i++) {
+          let url = this.buildSearchURL(filter as string, tag as string, albums[i].trim(), approved as boolean, options.pageSize, startIndex);
+          const resp = await this.runtime.fetch(url, {
+            method: "GET"
+          });
+
+          if (resp.ok) {
             const data = (JSON.parse(resp.text)).results;
 
-            if(data){
+            if (data) {
               dataFormatted = dataFormatted.concat(data.map(d => ({
                 id: d.id,
                 name: d.name,
@@ -227,10 +245,10 @@ export default class MyConnector implements Media.MediaConnector {
         const resp = await this.runtime.fetch(url, {
           method: "GET"
         });
-  
+
         if (resp.ok && resp.status != 404) {
           const data = (JSON.parse(resp.text)).results;
-  
+
           const dataFormatted = data.map(d => ({
             id: d.id,
             name: d.name,
@@ -238,7 +256,7 @@ export default class MyConnector implements Media.MediaConnector {
             type: 0,
             metaData: {}
           })) as Array<any>;
-  
+
           return {
             pageSize: options.pageSize,
             data: dataFormatted,
@@ -327,7 +345,7 @@ export default class MyConnector implements Media.MediaConnector {
         name: "query",
         displayName: "Keyword filter",
         type: "text"
-      }, { 
+      }, {
         name: "tagFilter",
         displayName: "Tag filter",
         type: "text"
