@@ -18,6 +18,18 @@ type CantoAlbum = {
   scheme: "album"
 }
 
+type ContextOptions = {
+  startindex: number,
+  pageSize: number,
+  filter: string,
+  collection: any,
+  query: string,
+  tagFilter: string,
+  albumFilter: string,
+  folderView: boolean,
+  approved: boolean,
+}
+
 export default class MyConnector implements Media.MediaConnector {
 
   private runtime: Connector.ConnectorRuntimeContext;
@@ -31,227 +43,36 @@ export default class MyConnector implements Media.MediaConnector {
     context: Connector.Dictionary
   ): Promise<Media.MediaPage> {
 
+    // Hold context options
+    const contextOptions = {
+      startindex: Number(options.pageToken) || 0,
+      pageSize: options.pageSize || 0,
+      filter: options.filter[0] ?? '',
+      collection: options.collection ?? null,
+      query: context['query'] ?? '',
+      tagFilter: context['tagFilter'] ?? '',
+      albumFilter: context['albumFilter'] ?? '',
+      folderView: context['folderView'] ?? false,
+      approved: context['approved'] ?? false,
+    } as ContextOptions;
+
     // query before download check
-    if (options.pageSize == 1 && !options.collection) {
-      const id = options.filter[0];
-      const url = `${this.runtime.options["baseURL"]}/api/v1/image/${id}`;
-
-      const resp = await this.runtime.fetch(url, {
-        method: "GET"
-      });
-
-      if (!resp.ok) {
-        throw new Error("Failed to fetch info from Canto");
-      }
-
-      const data = JSON.parse(resp.text);
-
-      return {
-        pageSize: options.pageSize,
-        data: [{
-          id: options.filter[0],
-          name: "",
-          relativePath: "",
-          type: 0,
-          metaData: {
-            "owner": data.ownerName ?? '',
-            "resolution": data.dpi ?? '',
-            "approvalStatus": data.approvalStatus ?? '',
-            "width": data.width ?? '',
-            "height": data.height ?? '',
-            ...toDictionary(data.default),
-            ...toDictionary(data.additional)
-          }
-        }],
-        links: {
-          nextPage: ""
-        }
-      }
+    if (checkQueryBeforeDownload(options)) {
+      return this.handleQueryBeforeDownload(contextOptions);
     }
 
-    // normal query
-    const startIndex = Number(options.pageToken) || 0;
-    const query = context['query'] ?? '';
-    const tag = context['tagFilter'] ?? '';
-    const filter = options.filter[0] ?? '';
-    const albumFilter = context['albumFilter'] ?? '';
-    const browseFolders = context['folderView'] ?? false;
-    const approved = context['approved'] ?? false;
-    const collection = options.collection ?? null;
-
-    // Do an intial check to see if there's a filter, browse based on that
-    if (filter != '') {
-      let url = buildSearchURL(filter as string, tag as string, albumFilter as string, approved as boolean, options.pageSize, startIndex);
-      const resp = await this.runtime.fetch(url, {
-        method: "GET"
-      });
-
-      if (resp.ok) {
-        const data = (JSON.parse(resp.text)).results;
-
-        const dataFormatted = data.map(d => ({
-          id: d.id,
-          name: d.name,
-          relativePath: "/",
-          type: 0,
-          metaData: {}
-        })) as Array<any>;
-
-        return {
-          pageSize: options.pageSize,
-          data: dataFormatted,
-          links: {
-            nextPage: `${dataFormatted.length < options.pageSize ? '' : startIndex + 1}`
-          }
-        }
-      }
-
-    }
-    if (browseFolders) {
-
-      this.runtime.logError(JSON.stringify(options));
-
-      const { path, scheme } = (JSON.parse(options.collection.split("$$")[1] ?? `{ "path": "/", "scheme": "folder" }`)) as { path: string, scheme: "folder" | "album" };
-
-      this.runtime.logError(path)
-
-      const pathSteps = path.split("/").filter(p => p);
-
-      if (scheme == "folder") {
-
-        let url = `${this.runtime.options["baseURL"]}/api/v1/tree?sortBy=scheme&sortDirection=ascending&layer=-1`;
-
-        const resp = await this.runtime.fetch(url, {
-          method: "GET"
-        });
-
-        if (resp.ok) {
-          const allDirectories = (JSON.parse(resp.text)).results as CantoItem[];
-
-          const currentDir = pathSteps.length == 0 ? allDirectories : pathSteps.reduce((p, c) => {
-            return (p.find(item => item.id == c) as CantoFolder).children
-          }, allDirectories);
-
-
-          const dataFormatted = currentDir.filter(d => d.scheme == "folder" || d.scheme == "album").map(d => ({
-            id: d.idPath,
-            name: d.name,
-            relativePath: "$$" + JSON.stringify({ path: d.idPath, scheme: d.scheme }) + "$$",
-            type: 1,
-            metaData: {}
-          })) as Array<any>;
-
-          return {
-            pageSize: options.pageSize,
-            data: dataFormatted,
-            links: {
-              nextPage: ''
-            }
-          }
-        }
-      }
-
-      if (scheme == "album") {
-
-        const id = pathSteps[pathSteps.length - 1];
-        let url = `${this.runtime.options["baseURL"]}/rest/search/album/${id}?aggsEnabled=true&sortBy=created&sortDirection=false&size=${options.pageSize}&type=image&start=${startIndex}`;
-
-        const resp = await this.runtime.fetch(url, {
-          method: "GET"
-        });
-
-        if (resp.ok) {
-          const imagesFound = JSON.parse(resp.text).hits;
-          const images = imagesFound.hit.filter(img => img.scheme == "image");
-
-
-          const dataFormatted = images.map(d => ({
-            id: d.path,
-            name: d.displayName,
-            relativePath: "/",
-            type: 0,
-            metaData: {}
-          })) as Array<any>;
-
-          return {
-            pageSize: options.pageSize,
-            data: dataFormatted,
-            links: {
-              nextPage: ``
-            }
-          }
-
-
-        }
-
-      }
-    }
-    else { //Filter search mode
-      // Check if multiple album IDs were provided
-      if((albumFilter as string).includes("&")){
-        // split albumFilter along &
-        const albums = (albumFilter as string).split("&");
-        let dataFormatted = [];
-
-        for(let i = 0; i < albums.length; i++){
-          let url =  buildSearchURL(filter as string, tag as string, albums[i].trim(), approved as boolean, options.pageSize, startIndex);
-          const resp = await this.runtime.fetch(url, {
-            method: "GET"
-          });
-
-          if(resp.ok) {
-            const data = (JSON.parse(resp.text)).results;
-
-            if(data){
-              dataFormatted = dataFormatted.concat(data.map(d => ({
-                id: d.id,
-                name: d.name,
-                relativePath: "/",
-                type: 0,
-                metaData: {}
-              })) as Array<any>);
-            }
-          }
-        }
-
-        return {
-          pageSize: options.pageSize,
-          data: dataFormatted,
-          links: {
-            nextPage: `${dataFormatted.length < options.pageSize ? '' : startIndex + 1}`
-          }
-        }
-      }
-      else {
-        let url = buildSearchURL(filter as string, tag as string, albumFilter as string, approved as boolean, options.pageSize, startIndex);
-        const resp = await this.runtime.fetch(url, {
-          method: "GET"
-        });
-  
-        if (resp.ok && resp.status != 404) {
-          const data = (JSON.parse(resp.text)).results;
-  
-          const dataFormatted = data.map(d => ({
-            id: d.id,
-            name: d.name,
-            relativePath: "/",
-            type: 0,
-            metaData: {}
-          })) as Array<any>;
-  
-          return {
-            pageSize: options.pageSize,
-            data: dataFormatted,
-            links: {
-              nextPage: `${dataFormatted.length < options.pageSize ? '' : startIndex + 1}`
-            }
-          }
-        }
-      }
-      // error handling
-      throw new Error("Failed to fetch images from Canto!");
+    // Filter query (left-hand panel)
+    if (contextOptions.filter != '') {
+      return this.handleFilterQuery(contextOptions);
     }
 
+    // Folder browsing
+    if (contextOptions.folderView) {
+      return this.handleFolderBrowsing(contextOptions);
+    }
+
+    // Search query
+    return this.handleSearchQuery(contextOptions);
   }
   detail(
     id: string,
@@ -327,7 +148,7 @@ export default class MyConnector implements Media.MediaConnector {
         name: "query",
         displayName: "Keyword filter",
         type: "text"
-      }, { 
+      }, {
         name: "tagFilter",
         displayName: "Tag filter",
         type: "text"
@@ -357,45 +178,154 @@ export default class MyConnector implements Media.MediaConnector {
     };
   }
   // custom functions
-  // build search URL
-  // buildSearchURL(keyword: string, tag: string, album: string, approved: boolean, pageSize: number, startIndex: number) {
-  //   let url = `${this.runtime.options["baseURL"]}/api/v1/search?scheme=image&limit=${pageSize}&start=${startIndex * pageSize}`;
-  //   // Check if there's an album provided first, that changes the base endpoint
-  //   if (album != '') {
-  //     url = `${this.runtime.options["baseURL"]}/api/v1/album/${album}?scheme=image&limit=${pageSize}&start=${startIndex * pageSize}`;
-  //   }
-  //   if (keyword != '') {
-  //     url += `&keyword=${keyword}`;
-  //   }
-  //   if (tag != '') {
-  //     url += `&tags=${tag}`;
-  //   }
-  //   if (approved) {
-  //     url += `&approval=approved`;
-  //   }
+  buildSearchURL(keyword: string, tag: string, album: string, approved: boolean, pageSize: number, startIndex: number) {
+    let url = `${this.runtime.options["baseURL"]}/api/v1/search?scheme=image&limit=${pageSize}&start=${startIndex * pageSize}`;
+    // Check if there's an album provided first, that changes the base endpoint
+    if (album != '') {
+      url = `${this.runtime.options["baseURL"]}/api/v1/album/${album}?scheme=image&limit=${pageSize}&start=${startIndex * pageSize}`;
+    }
+    if (keyword != '') {
+      url += `&keyword=${keyword}`;
+    }
+    if (tag != '') {
+      url += `&tags=${tag}`;
+    }
+    if (approved) {
+      url += `&approval=approved`;
+    }
 
-  //   return url;
-  // }
-}
-
-// Build search URL
-function buildSearchURL(keyword: string, tag: string, album: string, approved: boolean, pageSize: number, startIndex: number) {
-  let url = `${this.runtime.options["baseURL"]}/api/v1/search?scheme=image&limit=${pageSize}&start=${startIndex * pageSize}`;
-  // Check if there's an album provided first, that changes the base endpoint
-  if (album != '') {
-    url = `${this.runtime.options["baseURL"]}/api/v1/album/${album}?scheme=image&limit=${pageSize}&start=${startIndex * pageSize}`;
-  }
-  if (keyword != '') {
-    url += `&keyword=${keyword}`;
-  }
-  if (tag != '') {
-    url += `&tags=${tag}`;
-  }
-  if (approved) {
-    url += `&approval=approved`;
+    return url;
   }
 
-  return url;
+  async handleQueryBeforeDownload(contextOptions: ContextOptions): Promise<Media.MediaPage> {
+    const id = contextOptions.filter;
+    const url = `${this.runtime.options["baseURL"]}/api/v1/image/${id}`;
+    const resp = await this.runtime.fetch(url, {
+      method: "GET"
+    });
+
+    if (!resp.ok) {
+      throw new Error("Failed to fetch info from Canto");
+    }
+
+    const data = JSON.parse(resp.text);
+
+    // For now, doesn't use buildMediaPage, as this is its own unique case
+    return {
+      pageSize: contextOptions.pageSize,
+      data: [{
+        id: contextOptions.filter,
+        name: "",
+        relativePath: "",
+        type: 0,
+        metaData: parseMetadata(data),
+      }],
+      links: {
+        nextPage: ""
+      }
+    }
+  }
+
+  async handleFolderBrowsing(contextOptions: ContextOptions): Promise<Media.MediaPage> { 
+    const { path, scheme } = (JSON.parse(contextOptions.collection.split("$$")[1] ?? `{ "path": "/", "scheme": "folder" }`)) as { path: string, scheme: "folder" | "album" };
+    const pathSteps = path.split("/").filter(p => p);
+
+    if (scheme == "folder") {
+      return this.handleSearchFolder(contextOptions, pathSteps);
+    }
+    else {
+      return this.handleSearchAlbum(contextOptions, pathSteps);
+    }
+  }
+
+  async handleSearchFolder(contextOptions: ContextOptions, pathSteps: Array<any>): Promise<Media.MediaPage> {
+    let url = `${this.runtime.options["baseURL"]}/api/v1/tree?sortBy=scheme&sortDirection=ascending&layer=-1`;
+    const resp = await this.runtime.fetch(url, {
+      method: "GET"
+    });
+
+    if (resp.ok) {
+      const allDirectories = (JSON.parse(resp.text)).results as CantoItem[];
+      const currentDir = pathSteps.length == 0 ? allDirectories : pathSteps.reduce((p, c) => {
+        return (p.find(item => item.id == c) as CantoFolder).children
+      }, allDirectories);
+
+      const dataFormatted = formatData(currentDir, contextOptions.pageSize, true);
+      return buildMediaPage(contextOptions, dataFormatted);
+    }
+    throw new Error("Failed to fetch images from Canto!")
+  }
+
+  async handleSearchAlbum(contextOptions: ContextOptions, pathSteps: Array<any>): Promise<Media.MediaPage> {
+    const id = pathSteps[pathSteps.length - 1];
+    // The album search endpoint used here normally behaves very differently to the one used everywhere else. I've replaced it, but keeping the old one in comments for now
+    let url = this.buildSearchURL('', '', id, false, contextOptions.pageSize, contextOptions.startindex);
+    // let url = `${this.runtime.options["baseURL"]}/rest/search/album/${id}?aggsEnabled=true&sortBy=created&sortDirection=false&size=${options.pageSize}&type=image&start=${startIndex}`;
+
+    const resp = await this.runtime.fetch(url, {
+      method: "GET"
+    });
+
+    if (resp.ok) {
+      const imagesFound = JSON.parse(resp.text).results;
+      const dataFormatted = formatData(imagesFound, contextOptions.pageSize);
+
+      return buildMediaPage(contextOptions, dataFormatted);
+    }
+
+    throw new Error("Failed to fetch images from Canto!")
+  }
+
+  async handleSearchQuery(contextOptions: ContextOptions): Promise<Media.MediaPage> {
+    const albums = (contextOptions.albumFilter as string).split("&");
+    let dataFormatted = [];
+
+    for (let i = 0; i < albums.length; i++) {
+      let url = this.buildSearchURL(
+        contextOptions.query as string,
+        contextOptions.tagFilter as string,
+        albums[i].trim(),
+        contextOptions.approved as boolean,
+        contextOptions.pageSize,
+        contextOptions.startindex
+      );
+      const resp = await this.runtime.fetch(url, {
+        method: "GET"
+      });
+
+      if (resp.ok) {
+        const data = (JSON.parse(resp.text)).results;
+        if (data) {
+          dataFormatted = dataFormatted.concat(formatData(data, contextOptions.pageSize));
+        }
+      } else {
+        throw new Error("Failed to fetch images from Canto!")
+      }
+    }
+    return buildMediaPage(contextOptions, dataFormatted);
+
+  }
+
+  async handleFilterQuery(contextOptions: ContextOptions): Promise<Media.MediaPage> {
+    let url = this.buildSearchURL(
+      contextOptions.filter as string,
+      contextOptions.tagFilter as string,
+      contextOptions.albumFilter as string,
+      contextOptions.approved as boolean,
+      contextOptions.pageSize,
+      contextOptions.startindex
+    );
+    const resp = await this.runtime.fetch(url, {
+      method: "GET"
+    });
+
+    if (resp.ok) {
+      const data = (JSON.parse(resp.text)).results;
+      const dataFormatted = formatData(data, contextOptions.pageSize);
+      return buildMediaPage(contextOptions, dataFormatted);
+    }
+    throw new Error("Failed to fetch images from Canto!")
+  }
 }
 
 function toDictionary(obj: Record<string, any>): Record<string, string | boolean> {
@@ -420,4 +350,56 @@ function toDictionary(obj: Record<string, any>): Record<string, string | boolean
   }
 
   return result;
+}
+
+function checkQueryBeforeDownload(options: Connector.QueryOptions): boolean {
+  return options.pageSize === 1 && !options.collection;
+}
+
+function parseMetadata(data: any): Record<string, string | boolean> {
+  return {
+    owner: data.ownerName ?? '',
+    resolution: data.dpi ?? '',
+    approvalStatus: data.approvalStatus ?? '',
+    width: data.width ?? '',
+    height: data.height ?? '',
+    ...toDictionary(data.default),
+    ...toDictionary(data.additional)
+  };
+}
+
+function formatData(results: any[], pageSize: number, isFolder?: boolean): Array<any> {
+  // I don't really like this being a whole if/else block
+  let dataFormatted;
+  if (isFolder) {
+    dataFormatted = results.filter(d => d.scheme == "folder" || d.scheme == "album").map(d => ({
+      id: d.idPath,
+      name: d.name,
+      relativePath: "$$" + JSON.stringify({ path: d.idPath, scheme: d.scheme }) + "$$",
+      type: 1,
+      metaData: {}
+    })) as Array<any>;
+  }
+  else {
+    dataFormatted = results.map(d => ({
+      id: d.id,
+      name: d.name,
+      relativePath: "/",
+      type: 0,
+      metaData: {}
+    })) as Array<any>;
+  }
+
+  return dataFormatted;
+}
+
+function buildMediaPage(contextOptions: ContextOptions, data: any[]): Media.MediaPage {
+  // I'm not sure if having a static pagination string in the nextPage link for everything will break things? I don't think this ever explicitly needs to be blank
+  return {
+    pageSize: contextOptions.pageSize,
+    data: data,
+    links: {
+      nextPage: `${data.length < contextOptions.pageSize ? '' : contextOptions.startindex + 1}`
+    }
+  }
 }
