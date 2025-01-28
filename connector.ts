@@ -5,6 +5,7 @@ type CantoFolder = {
   id: string,
   idPath: string,
   name: string,
+  namePath:string
   scheme: "folder",
   size: number,
   children: CantoItem[]
@@ -14,6 +15,7 @@ type CantoAlbum = {
   id: string,
   idPath: string,
   name: string,
+  namePath:string,
   size: number,
   scheme: "album"
 }
@@ -141,7 +143,7 @@ export default class MyConnector implements Media.MediaConnector {
     return [
       {
         name: "folderView",
-        displayName: "Folder View (keyword and tag will be ignored",
+        displayName: "Folder View (keyword and tag will be ignored)",
         type: "boolean"
       },
       {
@@ -227,39 +229,84 @@ export default class MyConnector implements Media.MediaConnector {
   }
 
   async handleFolderBrowsing(contextOptions: ContextOptions): Promise<Media.MediaPage> { 
-    const { path, scheme } = (JSON.parse(contextOptions.collection.split("$$")[1] ?? `{ "path": "/", "scheme": "folder" }`)) as { path: string, scheme: "folder" | "album" };
-    const pathSteps = path.split("/").filter(p => p);
+    this.runtime.logError("BROSWER");
+    this.runtime.logError(JSON.stringify(contextOptions));
 
-    if (scheme == "folder") {
-      return this.handleSearchFolder(contextOptions, pathSteps);
+    const [_, ...pathParts] = (contextOptions.collection ?? "/")
+      .split("/") as string[];
+
+    if (pathParts == null) {
+      throw new Error("pathParts was null");
+      // super rare with behavior - not sure is possible, but do something about it
     }
-    else {
-      return this.handleSearchAlbum(contextOptions, pathSteps);
-    }
+
+    const pathPartsClean = pathParts.filter(s => s).filter(s => s != "..");
+
+    this.runtime.logError(JSON.stringify(pathParts));
+
+    const currentCantoItem = await this.getCurrentCantoItem(pathPartsClean);
+    const previousPath = (currentCantoItem.namePath == "/") ? null : currentCantoItem.namePath.replace(currentCantoItem.name, "/");
+
+    this.runtime.logError(JSON.stringify(currentCantoItem));
+    this.runtime.logError(previousPath);
+
+    return currentCantoItem.scheme == "folder"
+      ? buildMediaPage(
+          contextOptions,
+          formatData(currentCantoItem.children, contextOptions.pageSize, previousPath, true),
+        )
+      : this.handleSearchAlbum(contextOptions, currentCantoItem);
   }
 
-  async handleSearchFolder(contextOptions: ContextOptions, pathSteps: Array<any>): Promise<Media.MediaPage> {
+  async getCurrentCantoItem(pathParts: Array<string>): Promise<CantoItem> {
+
+    this.runtime.logError("getCurrentCantoItem");
     let url = `${this.runtime.options["baseURL"]}/api/v1/tree?sortBy=scheme&sortDirection=ascending&layer=-1`;
     const resp = await this.runtime.fetch(url, {
       method: "GET"
     });
 
-    if (resp.ok) {
-      const allDirectories = (JSON.parse(resp.text)).results as CantoItem[];
-      const currentDir = pathSteps.length == 0 ? allDirectories : pathSteps.reduce((p, c) => {
-        return (p.find(item => item.id == c) as CantoFolder).children
-      }, allDirectories);
 
-      const dataFormatted = formatData(currentDir, contextOptions.pageSize, true);
-      return buildMediaPage(contextOptions, dataFormatted);
+    if (resp.ok) {
+
+      const rootCantoItems = JSON.parse(resp.text).results as CantoItem[];
+      const toplevelFolder: CantoFolder = {
+        children: rootCantoItems,
+        id: "",
+        idPath: "/",
+        namePath: "/",
+        name: "/",
+        scheme: "folder",
+        size: rootCantoItems.length,
+      };
+
+       return pathParts.reduce(
+        (currentCantoFolder: CantoFolder, pathPart:string, index) => {
+          const matchCantoItem = currentCantoFolder.children
+            .filter((item) => item.scheme == "folder" || item.scheme == "album")
+            .find((item) => item.name == pathPart);
+
+          if (!matchCantoItem)
+            throw new Error(`Could not find item with name: ${pathPart} on ${pathParts.join("/")}`);
+
+          if (pathParts.length == index + 1) return matchCantoItem;
+
+          if (matchCantoItem.scheme == "album")
+            throw new Error(`Expecting folder but got album at ${pathPart} path on ${pathParts.join("/")}`);
+
+          return matchCantoItem;
+        },
+        toplevelFolder,
+      );
+
+
     }
-    throw new Error("Failed to fetch images from Canto!")
+    throw new Error("Failed to fetch tree directory from Canto!")
   }
 
-  async handleSearchAlbum(contextOptions: ContextOptions, pathSteps: Array<any>): Promise<Media.MediaPage> {
-    const id = pathSteps[pathSteps.length - 1];
+  async handleSearchAlbum(contextOptions:ContextOptions, cantoAlbum: CantoAlbum): Promise<Media.MediaPage> {
     // The album search endpoint used here normally behaves very differently to the one used everywhere else. I've replaced it, but keeping the old one in comments for now
-    let url = this.buildSearchURL('', '', id, false, contextOptions.pageSize, contextOptions.startindex);
+    let url = this.buildSearchURL('', '', cantoAlbum.id, false, contextOptions.pageSize, contextOptions.startindex);
     // let url = `${this.runtime.options["baseURL"]}/rest/search/album/${id}?aggsEnabled=true&sortBy=created&sortDirection=false&size=${options.pageSize}&type=image&start=${startIndex}`;
 
     const resp = await this.runtime.fetch(url, {
@@ -267,13 +314,22 @@ export default class MyConnector implements Media.MediaConnector {
     });
 
     if (resp.ok) {
+
+
+      this.runtime.logError(JSON.parse(resp.text));
+
       const imagesFound = JSON.parse(resp.text).results;
-      const dataFormatted = formatData(imagesFound, contextOptions.pageSize);
+
+      const dataFormatted = formatData(
+              imagesFound ?? [],
+              contextOptions.pageSize,
+              cantoAlbum.namePath.replace(cantoAlbum.name, ""),
+            )
 
       return buildMediaPage(contextOptions, dataFormatted);
     }
 
-    throw new Error("Failed to fetch images from Canto!")
+    throw new Error(`Failed to fetch images from album ${JSON.stringify(cantoAlbum)}!`)
   }
 
   async handleSearchQuery(contextOptions: ContextOptions): Promise<Media.MediaPage> {
@@ -368,14 +424,15 @@ function parseMetadata(data: any): Record<string, string | boolean> {
   };
 }
 
-function formatData(results: any[], pageSize: number, isFolder?: boolean): Array<any> {
+function formatData(results: any[], pageSize: number, previousPath?:string, isFolder?: boolean): Array<any> {
+
   // I don't really like this being a whole if/else block
   let dataFormatted;
   if (isFolder) {
     dataFormatted = results.filter(d => d.scheme == "folder" || d.scheme == "album").map(d => ({
-      id: d.idPath,
+      id: d.id,
       name: d.name,
-      relativePath: "$$" + JSON.stringify({ path: d.idPath, scheme: d.scheme }) + "$$",
+      relativePath: d.namePath,
       type: 1,
       metaData: {}
     })) as Array<any>;
@@ -390,7 +447,18 @@ function formatData(results: any[], pageSize: number, isFolder?: boolean): Array
     })) as Array<any>;
   }
 
-  return dataFormatted;
+  return !previousPath
+    ? dataFormatted
+    : [
+        {
+          id: "back",
+          name: "../",
+          relativePath: previousPath + "/",
+          type: 1,
+          metaData: {},
+        },
+        ...dataFormatted,
+      ];
 }
 
 function buildMediaPage(contextOptions: ContextOptions, data: any[]): Media.MediaPage {
