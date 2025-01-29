@@ -1,18 +1,16 @@
-!!! info
-    This markdown document serves as a template or example. We will refer to X-Y-Z as a Media provider solution.
-    Use this document as a template, add / change to the needs for your connector.
-
-    We added info in this document, please remove the info boxes before you make a pull request.
-
 # Media Connector for Canto
 
 |  | Connector Type |
 | --- | --- |
 |  | Built-in |
-| :fontawesome-regular-square-check: | Built by CHILI publish |
-|  | Third party |
+|  | Built by CHILI publish |
+| :fontawesome-regular-square-check: | Third party |
 
 [See Connector Types](/GraFx-Studio/concepts/connectors/#types-of-connectors)
+
+## Support
+
+Please open a issue on the connectors [github](https://github.com/spicy-labs/canto-media-connector/issues) page.
 
 ## Installation
 
@@ -36,17 +34,17 @@ https://api.canto.com/#canto-oauth-page
 
 From the overview of Environments, click on "Settings" on the right to your environment, where you want to install or configure the Connector.
 
-![screenshot-full](sch13.jpg)
+![screenshot-full](docs/sch13.jpg)
 
 Then click the installed Connector to access the configuration.
 
-![screenshot-full](sch12.png)
+![screenshot-full](docs/sch12.png)
 
 ### Base Configuration
 
 Your instance of the Connector needs to know which **Canto** instance it should communicate with and how to authenticate.
 
-![screenshot-full](sch01.png)
+![screenshot-full](docs/sch01.png)
 
 ### Authentication
 
@@ -56,7 +54,7 @@ Select your type of authentication:
 
 **Supported on Browser:** OAuth 2.0 Client Credentials
 
-![screenshot](sch02.png)
+![screenshot](docs/sch02.png)
 
 - **Client ID** and **Client Secret**: These are customer-specific credentials provided by the **Canto** Admin when creating integrations within **Canto**.
 - **Username** and **Password**: User-specific credentials for authentication.
@@ -64,9 +62,6 @@ Select your type of authentication:
 - **Scope**: Consult your **X-Y-Z** Admin to determine the appropriate scope.
 
 You can configure separate authentication for machine-to-machine and browser use cases or use the same setup for both.
-
-![screenshot-full](sch04.png)
-- **Token Endpoint** https://oauth.canto.global/oauth/api/oauth2/compatible/token
 
 Consult your **Canto** System Admin for assistance in configuring these fields.
 
@@ -88,23 +83,19 @@ GraFx Studio accesses assets available in your Media Provider via impersonation,
 
 - Select the **Canto** Connector.
 
-![screenshot-full](sch07.png)
+![screenshot-full](docs/sch07.png)
 
-![screenshot-full](sch08.png)
+![screenshot-full](docs/sch08.png)
 
-![screenshot-full](sch09.png)
+![screenshot-full](docs/sch09.png)  
 
-Depending on the configuration, you may need to authenticate.
-
-![screenshot-full](sch10.png)
-
-- Once authenticated, **Canto** assets behave like any other asset in GraFx Studio.
+Note that the current version of the Canto GraFx Media Connector does not currently support pulling in PDFs as image assets due to limitations within Canto.
 
 ### Image Variables
 
 When using [image variables](/GraFx-Studio/guides/template-variables/assign/#assign-template-variable-to-image-frame), you will see the same list of assets when selecting an image.
 
-![screenshot-full](var01.png)
+![screenshot-full](docs/var01.png)
 
 ### Configuration Options
 
@@ -148,15 +139,4 @@ The "Fail Loading and Output if not approved" configuration option:
 ![image](https://github.com/user-attachments/assets/4f528d9f-ac6f-4a34-bf42-26b29c0673b5)  
 Will add an extra check to disallow images loading, and make GraFx Studio outputs fail, if they aren't marked as `approved` within Canto.  
 
-#### How To
-
-Queries are set at the variable level.
-
-Set the query value in the connector settings.
-
-![screenshot-full](var02.png)
-
 For more dynamic queries, you can use [variables](/GraFx-Studio/concepts/variables/), [actions](/GraFx-Studio/concepts/actions/), and [GraFx Genie](/GraFx-Studio/concepts/grafx-genie/) to automate and refine your queries.
-
-!!! info
-    These settings will vary, depending on what you added in your connector
