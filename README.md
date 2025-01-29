@@ -3,10 +3,14 @@
 |  | Connector Type |
 | --- | --- |
 |  | Built-in |
-| :fontawesome-regular-square-check: | Built by CHILI publish |
-|  | Third party |
+|  | Built by CHILI publish |
+| :fontawesome-regular-square-check: | Third party |
 
 [See Connector Types](/GraFx-Studio/concepts/connectors/#types-of-connectors)
+
+## Support
+
+Please open a issue on the connectors [github](https://github.com/spicy-labs/canto-media-connector/issues) page.
 
 ## Installation
 
