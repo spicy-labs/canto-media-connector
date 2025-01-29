@@ -1,17 +1,114 @@
-# Overview
-The Canto Media Connector can be used to pull image assets from an existing Canto environment into a GraFx Studio template.
+# Media Connector for Canto
 
-# Using the Canto Media Connector
-The Canto Media Connector has two modes of browsing images, folder view and filter view.
+|  | Connector Type |
+| --- | --- |
+|  | Built-in |
+| :fontawesome-regular-square-check: | Built by CHILI publish |
+|  | Third party |
 
-## Folder view
+[See Connector Types](/GraFx-Studio/concepts/connectors/#types-of-connectors)
+
+## Installation
+
+How to deploy or install a connector to your environment?
+
+[See Installation Through Connector Hub](/GraFx-Studio/guides/connector-hub/)
+
+## Canto Media Connector Configuration 
+
+!!! info
+    Add the necessary references to settings that need to be made on the X-Y-Z side
+
+Consult your [Canto API documentation](https://api.canto.com/) or Canto System Admin to obtain the correct values for the fields.
+
+- **OAuth settings**
+``` html
+https://api.canto.com/#canto-oauth-page
+```
+
+## CHILI GraFx Connector Configuration 
+
+From the overview of Environments, click on "Settings" on the right to your environment, where you want to install or configure the Connector.
+
+![screenshot-full](docs/sch13.jpg)
+
+Then click the installed Connector to access the configuration.
+
+![screenshot-full](docs/sch12.png)
+
+### Base Configuration
+
+Your instance of the Connector needs to know which **Canto** instance it should communicate with and how to authenticate.
+
+![screenshot-full](docs/sch01.png)
+
+### Authentication
+
+Select your type of authentication:
+
+**Supported on Server:** OAuth 2.0 Client Credentials 
+
+**Supported on Browser:** OAuth 2.0 Client Credentials
+
+![screenshot](docs/sch02.png)
+
+- **Client ID** and **Client Secret**: These are customer-specific credentials provided by the **Canto** Admin when creating integrations within **Canto**.
+- **Username** and **Password**: User-specific credentials for authentication.
+- **Token Endpoint**: Developer-oriented settings available in **X-Y-Z** documentation. These settings are generic for all **X-Y-Z** clients.
+- **Scope**: Consult your **X-Y-Z** Admin to determine the appropriate scope.
+
+You can configure separate authentication for machine-to-machine and browser use cases or use the same setup for both.
+
+Consult your **Canto** System Admin for assistance in configuring these fields.
+
+### Server Authentication
+
+The credentials used for machine-to-machine authentication determine the governance on assets in automation workflows. 
+
+This means that if the credentials restrict access to specific assets, only those assets will be available during batch processing.
+
+### Browser Authentication or Impersonation
+
+GraFx Studio accesses assets available in your Media Provider via impersonation, where the credentials configured for the connector determine which assets are visible to the user in the template.
+
+**Impersonation** is the process of granting GraFx Studio users access to the DAM system using pre-configured credentials. This ensures seamless integration while respecting the DAM's security and governance rules.
+
+## Using Assets from Your **Canto** System
+
+### Place Assets in Your Template
+
+- Select the **Canto** Connector.
+
+![screenshot-full](docs/sch07.png)
+
+![screenshot-full](docs/sch08.png)
+
+![screenshot-full](docs/sch09.png)  
+
+Note that the current version of the Canto GraFx Media Connector does not currently support pulling in PDFs as image assets due to limitations within Canto.
+
+### Image Variables
+
+When using [image variables](/GraFx-Studio/guides/template-variables/assign/#assign-template-variable-to-image-frame), you will see the same list of assets when selecting an image.
+
+![screenshot-full](docs/var01.png)
+
+### Configuration Options
+
+#### Introduction
+
+To filter the assets suggested to template users, you can use tags, keywords, or other search parameters (see the **Filter View** section below)  
+
+**Canto** supports search queries through its query language. Consult the [**Canto API** Documentation](https://api.canto.com) or your **Canto** Administrator for guidance.  
+
+### Folder view
 This can be toggled on and off with the "Folder View" boolean value in the Connector options:  
 ![image](https://github.com/user-attachments/assets/e9d2d2f1-9990-421f-9e76-ae1287a0a213)  
 
 When enabled, you can browse through folders and albums within the Canto environment to find the media asset you want.  
 
 
-## Filter view
+### Filter view
 When the "Folder View" boolean value is toggled to false, the Connector will be in filter view mode. While here, there are a number of ways you can filter assets.
 
 The "Keyword filter" configuration option:  
@@ -38,10 +135,4 @@ The "Fail Loading and Output if not approved" configuration option:
 ![image](https://github.com/user-attachments/assets/4f528d9f-ac6f-4a34-bf42-26b29c0673b5)  
 Will add an extra check to disallow images loading, and make GraFx Studio outputs fail, if they aren't marked as `approved` within Canto.  
 
-All of the above configuration options can be used at the same time.  
-
-## Metadata Mapping
-The Canto Media Connector supports metadata mapping to GraFx Studio template variables. This includes default Canto asset metadata, and any metadata added in the "Custom Fields" section, for example:  
-<img width="426" alt="image" src="https://github.com/user-attachments/assets/5ca3df10-5490-4b64-a127-77e4f1f04568" />  
-
-![image](https://github.com/user-attachments/assets/b8e6e3ef-a4c2-4297-8233-7af836144be7)  
+For more dynamic queries, you can use [variables](/GraFx-Studio/concepts/variables/), [actions](/GraFx-Studio/concepts/actions/), and [GraFx Genie](/GraFx-Studio/concepts/grafx-genie/) to automate and refine your queries.
