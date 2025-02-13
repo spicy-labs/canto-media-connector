@@ -76,11 +76,32 @@ export default class MyConnector implements Media.MediaConnector {
     // Search query
     return this.handleSearchQuery(contextOptions);
   }
-  detail(
+  async detail(
     id: string,
     context: Connector.Dictionary
   ): Promise<Media.MediaDetail> {
-    throw new Error("Method not implemented.");
+    const url = `${this.runtime.options["baseURL"]}/api/v1/image/${id}`;
+    const resp = await this.runtime.fetch(url, {
+      method: "GET"
+    });
+
+    if (!resp.ok) {
+      throw new ConnectorHttpError(
+        resp.status,
+        `Canto: Detail failed ${resp.status} - ${resp.statusText}`
+      );
+    }
+    const data = JSON.parse(resp.text);
+
+    return {
+        id: data.id,
+        name: data.name,
+        relativePath: "",
+        type: 0,
+        metaData: parseMetadata(data),
+        width: data.width,
+        height: data.height
+    };
   }
   async download(
     id: string,
