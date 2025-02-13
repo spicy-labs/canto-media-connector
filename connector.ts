@@ -99,7 +99,10 @@ export default class MyConnector implements Media.MediaConnector {
       });
 
       if (!resp.ok) {
-        throw new Error("Failed to fetch info from Canto");
+        throw new ConnectorHttpError(
+          resp.status,
+          `Canto: Download failed ${resp.status} - ${resp.statusText}`
+        );
       }
 
       const data = JSON.parse(resp.text);
@@ -207,7 +210,10 @@ export default class MyConnector implements Media.MediaConnector {
     });
 
     if (!resp.ok) {
-      throw new Error("Failed to fetch info from Canto");
+      throw new ConnectorHttpError(
+        resp.status,
+        `Canto: Query failed ${resp.status} - ${resp.statusText}`
+      );
     }
 
     const data = JSON.parse(resp.text);
@@ -301,7 +307,10 @@ export default class MyConnector implements Media.MediaConnector {
 
 
     }
-    throw new Error("Failed to fetch tree directory from Canto!")
+    throw new ConnectorHttpError(
+      resp.status,
+      `Canto: Query failed ${resp.status} - ${resp.statusText}`
+    );
   }
 
   async handleSearchAlbum(contextOptions:ContextOptions, cantoAlbum: CantoAlbum): Promise<Media.MediaPage> {
@@ -329,7 +338,10 @@ export default class MyConnector implements Media.MediaConnector {
       return buildMediaPage(contextOptions, dataFormatted);
     }
 
-    throw new Error(`Failed to fetch images from album ${JSON.stringify(cantoAlbum)}!`)
+    throw new ConnectorHttpError(
+      resp.status,
+      `Canto: Query failed ${resp.status} - ${resp.statusText}`
+    );
   }
 
   async handleSearchQuery(contextOptions: ContextOptions): Promise<Media.MediaPage> {
@@ -355,7 +367,10 @@ export default class MyConnector implements Media.MediaConnector {
           dataFormatted = dataFormatted.concat(formatData(data, contextOptions.pageSize));
         }
       } else {
-        throw new Error("Failed to fetch images from Canto!")
+        throw new ConnectorHttpError(
+          resp.status,
+          `Canto: Query failed ${resp.status} - ${resp.statusText}`
+        );
       }
     }
     return buildMediaPage(contextOptions, dataFormatted);
@@ -380,7 +395,10 @@ export default class MyConnector implements Media.MediaConnector {
       const dataFormatted = formatData(data, contextOptions.pageSize);
       return buildMediaPage(contextOptions, dataFormatted);
     }
-    throw new Error("Failed to fetch images from Canto!")
+    throw new ConnectorHttpError(
+      resp.status,
+      `Canto: Query failed ${resp.status} - ${resp.statusText}`
+    );
   }
 }
 
