@@ -99,8 +99,8 @@ export default class MyConnector implements Media.MediaConnector {
         relativePath: "",
         type: 0,
         metaData: parseMetadata(data),
-        width: data.width,
-        height: data.height
+        width: Number(data.width),
+        height: Number(data.height)
     };
   }
   async download(
